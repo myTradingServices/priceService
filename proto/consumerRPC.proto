@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option go_package = "/pb";
+
+package pb;
+
+service Consumer {
+    rpc DataStream(google.protobuf.Empty) returns (stream responseDataStream) {}
+}
+
+message responseDataStream {
+    string symbol = 1;
+    int64 lowestPrice = 2;
+    int64 close = 3; 
+    int64 open = 4; 
+    int64 highestPrice = 5; 
+}

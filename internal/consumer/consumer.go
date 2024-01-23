@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
@@ -12,6 +13,7 @@ import (
 type consumer struct {
 	brokerURL string
 	topic     string
+	mut       sync.Mutex
 }
 
 type Reader interface {
@@ -27,12 +29,17 @@ func New(brokerURL string, topic string) Reader {
 
 func (cons *consumer) Read(ctx context.Context) {
 	for i := 0; i < 3; i++ {
+
+		cons.mut.Lock()
+
 		go func(partition int) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers:   []string{cons.brokerURL},
 				Topic:     cons.topic,
-				Partition: i,
+				Partition: i - 1,
 			})
+
+			cons.mut.Unlock()
 
 			gorutineNum := reader.Config().Partition
 			log.Info("Sucssesful start ", gorutineNum)
@@ -51,7 +58,7 @@ func (cons *consumer) Read(ctx context.Context) {
 				log.WithFields(log.Fields{
 					"key":   string(msg.Key),
 					"value": string(msg.Value),
-				})
+				}).Infof("Mesage sucsseful read by go-%v", gorutineNum)
 			}
 
 		}(i)
