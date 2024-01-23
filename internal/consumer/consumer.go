@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/segmentio/kafka-go"
@@ -63,4 +65,21 @@ func (cons *consumer) Read(ctx context.Context) {
 
 		}(i)
 	}
+}
+
+func ParseCandle(candle string) []int {
+	candleArr := strings.Split(candle, ";")
+	result := make([]int, 4)
+
+	for i, val := range candleArr {
+		num, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			log.Errorf("failed to parse candle: %v.", err)
+			return result
+		}
+
+		result[i] = int(num)
+	}
+
+	return result
 }
