@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"errors"
+	"time"
 
 	"github.com/mmfshirokan/PriceService/internal/model"
 	"github.com/mmfshirokan/PriceService/proto/pb"
@@ -42,5 +43,7 @@ func (serv *Server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_Dat
 		if err != nil {
 			log.Errorf("Error sending message: %v.", err)
 		}
+
+		time.Sleep(time.Second)
 	}
 }
