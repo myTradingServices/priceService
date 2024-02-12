@@ -1,4 +1,4 @@
 start:
 	go run main.go
-docker: 
-	docker-compose up --build
+gen:
+	cd ./proto &&  protoc --go_out=. --go-grpc_out=. *.proto && cd ../

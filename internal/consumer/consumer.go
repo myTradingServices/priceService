@@ -2,12 +2,11 @@ package consumer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
-	"strings"
-	"sync"
 
+	"github.com/mmfshirokan/PriceService/internal/model"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 )
@@ -15,33 +14,30 @@ import (
 type consumer struct {
 	brokerURL string
 	topic     string
-	mut       sync.Mutex
+	chanel    chan model.Price
 }
 
 type Reader interface {
 	Read(ctx context.Context)
 }
 
-func New(brokerURL string, topic string) Reader {
+func New(brokerURL string, topic string, ch chan model.Price) Reader {
 	return &consumer{
 		brokerURL: brokerURL,
 		topic:     topic,
+		chanel:    ch,
 	}
 }
 
 func (cons *consumer) Read(ctx context.Context) {
 	for i := 0; i < 3; i++ {
 
-		cons.mut.Lock()
-
 		go func(partition int) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers:   []string{cons.brokerURL},
 				Topic:     cons.topic,
-				Partition: i - 1,
+				Partition: partition,
 			})
-
-			cons.mut.Unlock()
 
 			gorutineNum := reader.Config().Partition
 			log.Info("Sucssesful start ", gorutineNum)
@@ -57,29 +53,13 @@ func (cons *consumer) Read(ctx context.Context) {
 					break
 				}
 
-				log.WithFields(log.Fields{
-					"key":   string(msg.Key),
-					"value": string(msg.Value),
-				}).Infof("Mesage sucsseful read by go-%v", gorutineNum)
+				price := model.Price{}
+
+				json.Unmarshal(msg.Value, &price)
+
+				cons.chanel <- price
 			}
 
 		}(i)
 	}
-}
-
-func ParseCandle(candle string) []int {
-	candleArr := strings.Split(candle, ";")
-	result := make([]int, 4)
-
-	for i, val := range candleArr {
-		num, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			log.Errorf("failed to parse candle: %v.", err)
-			return result
-		}
-
-		result[i] = int(num)
-	}
-
-	return result
 }

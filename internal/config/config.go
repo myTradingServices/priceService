@@ -8,6 +8,7 @@ import (
 type data struct {
 	KafkaURL   string `env:"KAFKA_URL" envDefault:"localhost:9092"`
 	KafkaTopic string `env:"KAFKA_TOPIC" envDefault:"prices"`
+	RpcPort    string `env:"RPC_PORT" envDefault:"localhost:7071"`
 }
 
 func New() data {
