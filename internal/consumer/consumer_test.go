@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -109,32 +108,35 @@ func TestMain(m *testing.M) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	if err != nil {
-		log.Fatalf("could not start kafka: %s", err)
+		log.Errorf("could not start kafka: %s", err)
+		return
 	}
 
 	kafkaHostAndPort = kafkaResource.GetHostPort("9093/tcp")
 	if kafkaHostAndPort == "" {
-		log.Fatalf("could not get kafka hostAndPort")
+		log.Errorf("could not get kafka hostAndPort")
+		return
 	}
 
 	ch = make(chan model.Price)
 	rdr = New(kafkaHostAndPort, topic, ch)
 
-	code := m.Run()
+	m.Run()
 
 	if err = pool.Purge(zookeeperResource); err != nil {
-		log.Fatalf("could not purge zookeeperResource: %s", err)
+		log.Errorf("could not purge zookeeperResource: %s", err)
+		return
 	}
 
 	if err = pool.Purge(kafkaResource); err != nil {
-		log.Fatalf("could not purge kafkaResource: %s", err)
+		log.Errorf("could not purge kafkaResource: %s", err)
+		return
 	}
 
 	if err = pool.Client.RemoveNetwork(network.ID); err != nil {
-		log.Fatalf("could not remove %s network: %s", network.Name, err)
+		log.Errorf("could not remove %s network: %s", network.Name, err)
+		return
 	}
-
-	os.Exit(code)
 }
 
 func TestRead(t *testing.T) {
@@ -219,6 +221,5 @@ func TestRead(t *testing.T) {
 				log.Error("Dates in passed msg are not equal")
 			}
 		}
-
 	}
 }

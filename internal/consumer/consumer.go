@@ -21,7 +21,7 @@ type Reader interface {
 	Read(ctx context.Context)
 }
 
-func New(brokerURL string, topic string, ch chan model.Price) Reader {
+func New(brokerURL, topic string, ch chan model.Price) Reader {
 	return &consumer{
 		brokerURL: brokerURL,
 		topic:     topic,
@@ -31,7 +31,6 @@ func New(brokerURL string, topic string, ch chan model.Price) Reader {
 
 func (cons *consumer) Read(ctx context.Context) {
 	for i := 0; i < 3; i++ {
-
 		go func(partition int) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers:   []string{cons.brokerURL},
@@ -49,17 +48,20 @@ func (cons *consumer) Read(ctx context.Context) {
 					break
 				}
 				if err != nil {
-					log.Error(fmt.Sprintf("error occured in gorutine-%d: %v", gorutineNum, err))
+					log.Error(fmt.Sprintf("error occurred in gorutine-%d: %v", gorutineNum, err))
 					break
 				}
 
 				price := model.Price{}
 
-				json.Unmarshal(msg.Value, &price)
+				err = json.Unmarshal(msg.Value, &price)
+				if err != nil {
+					log.Errorf("Unmarshal error: %v", err)
+					break
+				}
 
 				cons.chanel <- price
 			}
-
 		}(i)
 	}
 }
