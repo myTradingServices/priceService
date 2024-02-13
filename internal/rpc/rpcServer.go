@@ -41,14 +41,16 @@ func (serv *Server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_Dat
 			},
 			Symbol: price.Symbol,
 		})
-		if err != nil {
-			log.Errorf("Error sending message: %v.", err)
-		}
 		if err == io.EOF {
 			log.Infof("Stream exited, because error is: %v", err)
 			break
 		}
+		if err != nil {
+			log.Errorf("Error sending message: %v.", err)
+		}
 
 		time.Sleep(time.Second)
 	}
+
+	return nil
 }
