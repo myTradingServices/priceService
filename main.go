@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"strings"
 
 	"github.com/mmfshirokan/PriceService/internal/config"
 	"github.com/mmfshirokan/PriceService/internal/consumer"
@@ -17,33 +18,65 @@ func main() {
 	conf := config.New()
 	ctx := context.Background()
 
-	mainChan := make(chan model.Price)
+	chanelsMap := map[string]chan model.Price{
+		getPort(conf.RpcPort): make(chan model.Price),
+		// ADD more chanelse if nessasry
+	}
 	foreverChan := make(chan struct{})
 
-	cons := consumer.New(conf.KafkaURL, conf.KafkaTopic, mainChan)
+	cons := consumer.New(conf.KafkaURL, conf.KafkaTopic, chanelsMap)
 	go cons.Read(ctx)
-
-	go rpcServerStart(mainChan)
+	go rpcServerStart(chanelsMap)
 
 	<-foreverChan
 }
 
-func rpcServerStart(ch chan model.Price) {
-	lis, err := net.Listen("tcp", "localhost:9091")
-	if err != nil {
-		log.Errorf("failed to listen: %v", err)
-	}
+func rpcServerStart(chMap map[string]chan model.Price) {
 
-	rpcServer := grpc.NewServer()
-	rpcConsumer := rpc.NewConsumerServer(ch)
+	for port, chanel := range chMap {
+		go func(prt string, ch chan model.Price) {
+			lis, err := net.Listen("tcp", "localhost:"+prt)
+			if err != nil {
+				log.Errorf("failed to listen: %v", err)
+			}
 
-	pb.RegisterConsumerServer(rpcServer, rpcConsumer)
+			rpcServer := grpc.NewServer()
+			rpcConsumer := rpc.NewConsumerServer(ch)
 
-	err = rpcServer.Serve(lis)
-	if err != nil {
-		log.Error("rpc error: Server can't start")
+			pb.RegisterConsumerServer(rpcServer, rpcConsumer)
+
+			err = rpcServer.Serve(lis)
+			if err != nil {
+				log.Error("rpc error: Server can't start")
+			}
+		}(port, chanel)
 	}
 }
+
+func getPort(url string) string {
+	_, port, found := strings.Cut(url, ":")
+	if !found {
+		log.Error("Empty port-env, default env for map key 7070")
+		return "7070"
+	}
+
+	return port
+}
+
+// lis, err := net.Listen("tcp", "localhost:9091")
+// if err != nil {
+// 	log.Errorf("failed to listen: %v", err)
+// }
+
+// rpcServer := grpc.NewServer()
+// rpcConsumer := rpc.NewConsumerServer(chMap)
+
+// pb.RegisterConsumerServer(rpcServer, rpcConsumer)
+
+// err = rpcServer.Serve(lis)
+// if err != nil {
+// 	log.Error("rpc error: Server can't start")
+// }
 
 // var count uint = 0
 // for {

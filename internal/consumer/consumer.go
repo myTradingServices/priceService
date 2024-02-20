@@ -14,18 +14,18 @@ import (
 type consumer struct {
 	brokerURL string
 	topic     string
-	chanel    chan model.Price
+	chanels   map[string]chan model.Price
 }
 
 type Reader interface {
 	Read(ctx context.Context)
 }
 
-func New(brokerURL, topic string, ch chan model.Price) Reader {
+func New(brokerURL, topic string, chMap map[string]chan model.Price) Reader {
 	return &consumer{
 		brokerURL: brokerURL,
 		topic:     topic,
-		chanel:    ch,
+		chanels:   chMap,
 	}
 }
 
@@ -60,7 +60,9 @@ func (cons *consumer) Read(ctx context.Context) {
 					break
 				}
 
-				cons.chanel <- price
+				for _, ch := range cons.chanels {
+					ch <- price
+				}
 			}
 		}(i)
 	}

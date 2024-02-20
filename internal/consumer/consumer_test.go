@@ -24,7 +24,7 @@ const (
 
 var (
 	rdr              Reader
-	ch               chan model.Price
+	chMap            map[string]chan model.Price
 	kafkaHostAndPort string
 )
 
@@ -118,8 +118,10 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	ch = make(chan model.Price)
-	rdr = New(kafkaHostAndPort, topic, ch)
+	chMap = map[string]chan model.Price{
+		"9091": make(chan model.Price),
+	}
+	rdr = New(kafkaHostAndPort, topic, chMap)
 
 	m.Run()
 
@@ -212,7 +214,8 @@ func TestRead(t *testing.T) {
 				break
 			}
 
-			actual := <-ch
+			// TODO add test for multiple connections
+			actual := <-chMap["9091"]
 			assert.Equal(t, msg.Ask, actual.Ask)
 			assert.Equal(t, msg.Bid, actual.Bid)
 			assert.Equal(t, msg.Symbol, actual.Symbol)

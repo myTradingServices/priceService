@@ -11,18 +11,18 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type Server struct {
+type server struct {
 	chanel chan model.Price
 	pb.UnimplementedConsumerServer
 }
 
 func NewConsumerServer(ch chan model.Price) pb.ConsumerServer {
-	return &Server{
+	return &server{
 		chanel: ch,
 	}
 }
 
-func (serv *Server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_DataStreamServer) error {
+func (serv *server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_DataStreamServer) error {
 	if !req.Start {
 		return errors.New("start is not initiated")
 	}
