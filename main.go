@@ -56,7 +56,7 @@ func rpcServerStart(chMap map[string]chan model.Price) {
 func getPort(url string) string {
 	_, port, found := strings.Cut(url, ":")
 	if !found {
-		log.Error("Empty port-env, default env for map key 7070")
+		log.Error("Empty port-env, using default env for map-key 7070")
 		return "7070"
 	}
 
