@@ -19,7 +19,8 @@ func main() {
 	ctx := context.Background()
 
 	chanelsMap := map[string]chan model.Price{
-		getPort(conf.RpcPort): make(chan model.Price),
+		getPort(conf.RpcChartPort): make(chan model.Price),
+		getPort(conf.RpcPosPort):   make(chan model.Price),
 		// ADD more chanelse if nessasry
 	}
 	foreverChan := make(chan struct{})
@@ -62,25 +63,3 @@ func getPort(url string) string {
 
 	return port
 }
-
-// lis, err := net.Listen("tcp", "localhost:9091")
-// if err != nil {
-// 	log.Errorf("failed to listen: %v", err)
-// }
-
-// rpcServer := grpc.NewServer()
-// rpcConsumer := rpc.NewConsumerServer(chMap)
-
-// pb.RegisterConsumerServer(rpcServer, rpcConsumer)
-
-// err = rpcServer.Serve(lis)
-// if err != nil {
-// 	log.Error("rpc error: Server can't start")
-// }
-
-// var count uint = 0
-// for {
-// 	pr := <-mainChan
-// 	fmt.Printf("Num: %v, Symbol: %v, Bid: %v, Ask: %v, Time: %v\n", count, pr.Symbol, pr.Bid, pr.Ask, pr.Date)
-// 	count++
-// }
