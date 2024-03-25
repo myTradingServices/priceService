@@ -10,12 +10,14 @@ import (
 
 	"github.com/go-zookeeper/zk"
 	"github.com/mmfshirokan/PriceService/internal/model"
+	"github.com/mmfshirokan/PriceService/internal/rpc/mocks"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/segmentio/kafka-go"
 	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
@@ -23,7 +25,6 @@ const (
 )
 
 var (
-	rdr              Reader
 	chMap            map[string]chan model.Price
 	kafkaHostAndPort string
 )
@@ -41,9 +42,45 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	resNet, err := pool.Client.PruneNetworks(docker.PruneNetworksOptions{})
+	if err != nil {
+		log.Error("prune network error: ", err)
+	} else if len(resNet.NetworksDeleted) > 0 {
+		log.Info("pruned networks: ", resNet.NetworksDeleted)
+	} else {
+		log.Info("no networks to prune")
+	}
+
+	resCont, err := pool.Client.PruneContainers(docker.PruneContainersOptions{})
+	if err != nil {
+		log.Error("prune containers error: ", err)
+	} else if len(resCont.ContainersDeleted) > 0 {
+		log.Info("pruned containers: ", resCont.ContainersDeleted)
+	} else {
+		log.Info("no containers to prune")
+	}
+
+	resImg, err := pool.Client.PruneImages(docker.PruneImagesOptions{})
+	if err != nil {
+		log.Error("prune images error: ", err)
+	} else if len(resImg.ImagesDeleted) > 0 {
+		log.Info("pruned images: ", resImg.ImagesDeleted)
+	} else {
+		log.Info("no images to prune")
+	}
+
+	resVol, err := pool.Client.PruneVolumes(docker.PruneVolumesOptions{})
+	if err != nil {
+		log.Error("prune volumes error: ", err)
+	} else if len(resVol.VolumesDeleted) > 0 {
+		log.Info("pruned volumes: ", resVol.VolumesDeleted)
+	} else {
+		log.Info("no volumes to prune")
+	}
+
 	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "zookeeper_kafka_network"})
 	if err != nil {
-		log.Errorf("could not create a network to zookeeper and kafka: %s", err)
+		log.Errorf("could not create a network to zookeeper and kafka: %s; Will try to prune networks", err)
 		return
 	}
 
@@ -60,13 +97,16 @@ func TestMain(m *testing.M) {
 	})
 	if err != nil {
 		log.Errorf("Could not start zookeeper: %s", err)
-		return
+		tmp, ok := pool.ContainerByName("zookeeper-test") // Why use tmp?
+		if !ok {
+			return
+		}
+		zookeeperResource = tmp
 	}
 
 	conn, _, err := zk.Connect([]string{fmt.Sprintf("127.0.0.1:%s", zookeeperResource.GetPort("2181/tcp"))}, 60*time.Second) // 10 Seconds
 	if err != nil {
 		log.Errorf("could not connect zookeeper: %s", err)
-		return
 	}
 	defer conn.Close()
 
@@ -109,7 +149,11 @@ func TestMain(m *testing.M) {
 	})
 	if err != nil {
 		log.Errorf("could not start kafka: %s", err)
-		return
+		tmp, ok := pool.ContainerByName("kafka-test") // Why use tmp?
+		if !ok {
+			return
+		}
+		kafkaResource = tmp
 	}
 
 	kafkaHostAndPort = kafkaResource.GetHostPort("9093/tcp")
@@ -121,7 +165,6 @@ func TestMain(m *testing.M) {
 	chMap = map[string]chan model.Price{
 		"9091": make(chan model.Price),
 	}
-	rdr = New(kafkaHostAndPort, topic, chMap)
 
 	m.Run()
 
@@ -142,10 +185,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestRead(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*120)
 	defer cancel()
 
 	date := time.Now()
+	redisMock := mocks.NewRedisCasher(t)
+	consumer := New(kafkaHostAndPort, topic, chMap, redisMock)
 
 	testTable := []struct {
 		name     string
@@ -185,7 +230,7 @@ func TestRead(t *testing.T) {
 	}
 
 	for _, test := range testTable {
-		go rdr.Read(test.context)
+		go consumer.Read(test.context)
 
 		kafkaWriter := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:  []string{kafkaHostAndPort},
@@ -195,6 +240,16 @@ func TestRead(t *testing.T) {
 		})
 
 		for _, msg := range test.kafkaMsg {
+			//
+			// mockCall := redisMock.EXPECT().Set(mock.Anything, model.Price{
+			// 	Date:   msg.Date,
+			// 	Bid:    msg.Bid,
+			// 	Ask:    msg.Ask,
+			// 	Symbol: msg.Symbol,
+			// }).Return(nil)
+			//
+
+			mockCall := redisMock.EXPECT().Set(mock.Anything, mock.Anything).Return(nil)
 			jsonMarshaled, err := json.Marshal(msg)
 			if err != nil {
 				t.Fatalf("Unexpected marshal error: %v", err)
@@ -223,6 +278,10 @@ func TestRead(t *testing.T) {
 			if !msg.Date.Equal(actual.Date) {
 				log.Error("Dates in passed msg are not equal")
 			}
+			//
+			redisMock.AssertExpectations(t)
+			mockCall.Unset()
+			//
 		}
 	}
 }

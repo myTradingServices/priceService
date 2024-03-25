@@ -1,0 +1,12 @@
+version: '2.22'
+services:
+    cache:
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --loglevel warning
+    volumes: 
+      - cache:/data
+volumes:
+  cache:

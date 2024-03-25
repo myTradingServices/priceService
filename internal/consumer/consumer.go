@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/mmfshirokan/PriceService/internal/model"
+	"github.com/mmfshirokan/PriceService/internal/service"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 )
@@ -15,26 +16,28 @@ type consumer struct {
 	brokerURL string
 	topic     string
 	chanels   map[string]chan model.Price
+	redis     service.RedisCasher
 }
 
 type Reader interface {
 	Read(ctx context.Context)
 }
 
-func New(brokerURL, topic string, chMap map[string]chan model.Price) Reader {
+func New(brokerURL, topic string, chMap map[string]chan model.Price, redis service.RedisCasher) Reader {
 	return &consumer{
 		brokerURL: brokerURL,
 		topic:     topic,
 		chanels:   chMap,
+		redis:     redis,
 	}
 }
 
-func (cons *consumer) Read(ctx context.Context) {
+func (c *consumer) Read(ctx context.Context) {
 	for i := 0; i < 3; i++ {
 		go func(partition int) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
-				Brokers:   []string{cons.brokerURL},
-				Topic:     cons.topic,
+				Brokers:   []string{c.brokerURL},
+				Topic:     c.topic,
 				Partition: partition,
 			})
 
@@ -60,7 +63,9 @@ func (cons *consumer) Read(ctx context.Context) {
 					break
 				}
 
-				for _, ch := range cons.chanels {
+				c.redis.Set(ctx, price)
+
+				for _, ch := range c.chanels {
 					ch <- price
 				}
 			}

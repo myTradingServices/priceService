@@ -8,6 +8,7 @@ package pb;
 
 service Consumer {
     rpc DataStream(requestDataStream) returns (stream responseDataStream) {}
+    rpc GetLastPrice(requestGetLastPrice) returns (responseGetLastPrice) {}
 }
 
 message requestDataStream {
@@ -24,4 +25,12 @@ message responseDataStream {
         int64 value = 1;
         int32 exp = 2;
     }
+}
+
+message requestGetLastPrice {
+    string symbol = 1;
+}
+
+message responseGetLastPrice {
+    responseDataStream data = 1;
 }
