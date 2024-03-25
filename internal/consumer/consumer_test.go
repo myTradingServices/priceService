@@ -163,7 +163,7 @@ func TestMain(m *testing.M) {
 	}
 
 	chMap = map[string]chan model.Price{
-		"9091": make(chan model.Price),
+		"9093": make(chan model.Price),
 	}
 
 	m.Run()
@@ -230,8 +230,6 @@ func TestRead(t *testing.T) {
 	}
 
 	for _, test := range testTable {
-		go consumer.Read(test.context)
-
 		kafkaWriter := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:  []string{kafkaHostAndPort},
 			Topic:    topic,
@@ -239,16 +237,9 @@ func TestRead(t *testing.T) {
 			Balancer: &kafka.RoundRobin{},
 		})
 
-		for _, msg := range test.kafkaMsg {
-			//
-			// mockCall := redisMock.EXPECT().Set(mock.Anything, model.Price{
-			// 	Date:   msg.Date,
-			// 	Bid:    msg.Bid,
-			// 	Ask:    msg.Ask,
-			// 	Symbol: msg.Symbol,
-			// }).Return(nil)
-			//
+		go consumer.Read(test.context)
 
+		for _, msg := range test.kafkaMsg {
 			mockCall := redisMock.EXPECT().Set(mock.Anything, mock.Anything).Return(nil)
 			jsonMarshaled, err := json.Marshal(msg)
 			if err != nil {
@@ -256,6 +247,8 @@ func TestRead(t *testing.T) {
 			}
 
 			for {
+				counter := 0
+
 				err = kafkaWriter.WriteMessages(test.context, kafka.Message{
 					Key:   []byte(msg.Symbol),
 					Value: jsonMarshaled,
@@ -263,6 +256,10 @@ func TestRead(t *testing.T) {
 				if err != nil {
 					log.Errorf("Writing message error: %v", err)
 					time.Sleep(time.Second * 3)
+					if counter++; counter > 10 {
+						log.Error("Too many attempts to write message, exiting writer with no msg sended")
+						break
+					}
 					continue
 				}
 
@@ -270,7 +267,7 @@ func TestRead(t *testing.T) {
 			}
 
 			// TODO add test for multiple connections
-			actual := <-chMap["9091"]
+			actual := <-chMap["9093"]
 			assert.Equal(t, msg.Ask, actual.Ask)
 			assert.Equal(t, msg.Bid, actual.Bid)
 			assert.Equal(t, msg.Symbol, actual.Symbol)
@@ -278,10 +275,17 @@ func TestRead(t *testing.T) {
 			if !msg.Date.Equal(actual.Date) {
 				log.Error("Dates in passed msg are not equal")
 			}
-			//
 			redisMock.AssertExpectations(t)
 			mockCall.Unset()
-			//
 		}
 	}
 }
+
+//
+// mockCall := redisMock.EXPECT().Set(mock.Anything, model.Price{
+// 	Date:   msg.Date,
+// 	Bid:    msg.Bid,
+// 	Ask:    msg.Ask,
+// 	Symbol: msg.Symbol,
+// }).Return(nil)
+//
