@@ -33,13 +33,18 @@ func New(brokerURL, topic string, chMap map[string]chan model.Price, redis servi
 }
 
 func (c *consumer) Read(ctx context.Context) {
+	log.Info("price-service Kafka reader started")
 	for i := 0; i < 3; i++ {
+
+		//log.Infof("input kafka_url from consumer.go: %v", c.brokerURL)
+
 		go func(partition int) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers:   []string{c.brokerURL},
 				Topic:     c.topic,
 				Partition: partition,
 			})
+			defer reader.Close()
 
 			gorutineNum := reader.Config().Partition
 			log.Info("Sucssesful start ", gorutineNum)
@@ -63,12 +68,21 @@ func (c *consumer) Read(ctx context.Context) {
 					break
 				}
 
-				c.redis.Set(ctx, price)
+				err = c.redis.Set(ctx, price)
+				if err != nil {
+					log.Errorf("Redis error: %v, exiting datastream", err)
+					break //^?
+				}
+
+				log.Info("Kafka messafe read for ", price.Symbol)
 
 				for _, ch := range c.chanels {
+					log.Info("Sending for chanel: ", ch)
 					ch <- price
+					log.Info("Compleet sending for chanel: ", ch)
 				}
 			}
 		}(i)
 	}
+	log.Info("price-service Kafka reader finished")
 }

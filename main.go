@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net"
-	"strings"
 
 	"github.com/mmfshirokan/PriceService/internal/config"
 	"github.com/mmfshirokan/PriceService/internal/consumer"
@@ -16,6 +15,8 @@ import (
 )
 
 func main() {
+	log.Info("Starting price service")
+
 	ctx := context.Background()
 	conf, err := config.New()
 	if err != nil {
@@ -24,8 +25,8 @@ func main() {
 	}
 
 	chanelsMap := map[string]chan model.Price{
-		getPort(conf.RpcChartPort): make(chan model.Price),
-		getPort(conf.RpcPosPort):   make(chan model.Price),
+		conf.RpcChartPort: make(chan model.Price), //uncooment
+		conf.RpcPosPort:   make(chan model.Price), //coment if position service is not working!
 		// ADD more chanelse if nessasry
 	}
 
@@ -38,21 +39,28 @@ func main() {
 
 	foreverChan := make(chan struct{})
 
+	log.WithFields(log.Fields{
+		"input kafka_url": conf.KafkaURL,
+		"input redis_url": conf.RedisURL,
+	}).Info("Input config from main.go:\n")
+
 	cons := consumer.New(conf.KafkaURL, conf.KafkaTopic, chanelsMap, repo)
 	go cons.Read(ctx)
 	go rpcServerStart(chanelsMap, conf.RedisURL)
 
+	log.Info("Price service working...")
 	<-foreverChan
 }
 
 func rpcServerStart(chMap map[string]chan model.Price, redisURL string) {
-
 	for port, chanel := range chMap {
 		go func(prt string, ch chan model.Price) {
-			lis, err := net.Listen("tcp", "localhost:"+prt)
+			lis, err := net.Listen("tcp", ":"+prt)
 			if err != nil {
 				log.Errorf("failed to listen: %v", err)
 			}
+
+			log.Infof("Listening on addres: %v", lis.Addr().String())
 
 			client, err := repository.NewCLient(redisURL)
 			if err != nil {
@@ -71,14 +79,4 @@ func rpcServerStart(chMap map[string]chan model.Price, redisURL string) {
 			}
 		}(port, chanel)
 	}
-}
-
-func getPort(url string) string {
-	_, port, found := strings.Cut(url, ":")
-	if !found {
-		log.Error("Empty port-env, using default env for map-key 7070")
-		return "7070"
-	}
-
-	return port
 }

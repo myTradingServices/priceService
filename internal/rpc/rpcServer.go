@@ -27,12 +27,18 @@ func NewConsumerServer(ch chan model.Price, serv service.RedisCasher) pb.Consume
 }
 
 func (s *server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_DataStreamServer) error {
+	log.Info("Data stream started")
+
 	if !req.Start {
+		log.Info("Data stream exited (request start is not true)")
 		return errors.New("start is not initiated")
 	}
 
 	for {
+		log.Info("Recive from ch: ", s.chanel)
 		price := <-s.chanel
+		log.Info("Recive completed for ch: ", s.chanel)
+
 		err := stream.Send(&pb.ResponseDataStream{
 			Date: timestamppb.New(price.Date),
 			Bid: &pb.ResponseDataStreamDecimal{
@@ -53,18 +59,26 @@ func (s *server) DataStream(req *pb.RequestDataStream, stream pb.Consumer_DataSt
 			log.Errorf("Error sending message: %v.", err)
 		}
 
-		time.Sleep(time.Second)
+		log.Infof("Message sent for symbol: %v, on: %v", price.Symbol, time.Now().String())
+
+		//time.Sleep(time.Second)//?
 	}
+
+	log.Info("Data stream exited")
 
 	return nil
 }
 
 func (s *server) GetLastPrice(ctx context.Context, req *pb.RequestGetLastPrice) (resp *pb.ResponseGetLastPrice, err error) {
+	log.Info("GetLastPrice called")
+
 	price, err := s.serv.Get(ctx, req.Symbol)
 	if err != nil {
 		log.Error("GetLastPrice error: ", err)
 		return nil, err
 	}
+
+	log.Info("GetLastPrice call completed")
 
 	return &pb.ResponseGetLastPrice{
 		Data: &pb.ResponseDataStream{
